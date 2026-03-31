@@ -166,7 +166,6 @@
             </div>
             <div class="p-6">
               <ul id="shortCatchesContainer" class="space-y-3">
-                <!-- Javascript will inject items here -->
               </ul>
             </div>
           </div>
@@ -181,7 +180,6 @@
             </div>
             <div class="p-6">
               <div id="empathyCatchesContainer" class="grid grid-cols-1 gap-4">
-                <!-- Javascript will inject items here -->
               </div>
             </div>
           </div>
@@ -264,13 +262,14 @@
   </main>
 
   <script>
-    // Initialize icons
     lucide.createIcons();
 
-    const apiKey = "";
+    // ===== ここを自分のWorker URLに変更してください =====
+    const WORKER_URL = 'https://yymmatsu.workers.dev/';
+    // ====================================================
+
     let currentResultData = null;
 
-    // View elements
     const initialView = document.getElementById('initialView');
     const loadingView = document.getElementById('loadingView');
     const resultView = document.getElementById('resultView');
@@ -280,7 +279,6 @@
     const btnIcon = document.getElementById('btnIcon');
     const btnText = document.getElementById('btnText');
 
-    // Utility: HTML Escape
     const escapeHTML = (str) => {
       return str.replace(/[&<>'"]/g, 
         tag => ({
@@ -293,8 +291,7 @@
       );
     };
 
-    // Retry Logic for API
-    const fetchWithRetry = async (url, options, maxRetries = 5) => {
+    const fetchWithRetry = async (url, options, maxRetries = 3) => {
       let retries = 0;
       while (retries < maxRetries) {
         try {
@@ -314,7 +311,6 @@
       }
     };
 
-    // Copy Logic using global data store to avoid escaping issues
     async function copyData(key, btnElement, index = null) {
       if (!currentResultData) return;
       
@@ -352,7 +348,6 @@
       }
     }
 
-    // Main Submit Handler
     document.getElementById('copyForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
@@ -363,7 +358,6 @@
 
       if (!appInfo.trim()) return;
 
-      // Update UI for loading
       initialView.classList.add('hidden');
       resultView.classList.add('hidden');
       errorView.classList.add('hidden');
@@ -374,14 +368,15 @@
       btnText.textContent = '生成中...';
       lucide.createIcons({ root: submitBtn });
 
-      const systemPrompt = `
-あなたはプロのコピーライター兼Webマーケターです。
+      // ===== Claude API用システムプロンプト =====
+      const systemPrompt = `あなたはプロのコピーライター兼Webマーケターです。
 中小企業・士業・店舗ビジネスに強く、「共感」と「わかりやすさ」で行動を促す文章作成が得意です。
 
-以下の条件とルールに厳密に従い、JSON形式で出力してください。
+必ずJSONのみを出力してください。説明文・前置き・マークダウンのコードブロックは一切不要です。
+出力はJSONオブジェクトそのものだけにしてください。
 
 【目的】
-ユーザーが“そのままコピペして使える”実用的な文章を生成すること
+ユーザーが"そのままコピペして使える"実用的な文章を生成すること
 
 【出力ルール】
 ① 短いキャッチ（5〜15文字）
@@ -402,7 +397,7 @@
 
 ④ SNS投稿テンプレ（重要）
 ・そのまま使える形で1つ作成
-・改行を含める（JSON内では \\n を使用）
+・改行を含める（JSONでは \\n を使用）
 ・絵文字を適度に使用
 ・「共感 → 提案 → 行動」の流れ
 
@@ -413,7 +408,7 @@
 
 【追加指示】
 ・「他の類似サービスとの差別化」を意識する
-・“誰に向けたサービスか”を必ず明確にする
+・"誰に向けたサービスか"を必ず明確にする
 ・1つは「意外性のある切り口」を入れる
 ・クリックしたくなる言葉を1つは含める
 
@@ -425,46 +420,46 @@
   "description75": "75文字程度の説明文",
   "description100": "100文字程度の説明文",
   "snsTemplate": "SNS投稿用のテキスト（改行や絵文字を含む）"
-}
-`;
+}`;
 
-      const userQuery = `
-以下の入力情報をもとにコピーを作成してください。
+      const userQuery = `以下の入力情報をもとにコピーを作成してください。
 
 【入力情報】
 ・アプリ/サービス名・URL：\n${appInfo}
 ・ターゲット：${target || '指定なし（一般向け）'}
 ・トーン：${tone || '指定なし（プロフェッショナルかつ親しみやすい）'}
-・使用シーン：${scene || '指定なし'}
-`;
+・使用シーン：${scene || '指定なし'}`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-      
+      // ===== Claude API（Cloudflare Worker経由）のペイロード =====
       const payload = {
-        contents: [{ parts: [{ text: userQuery }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { 
-          responseMimeType: "application/json",
-          temperature: 0.7
-        }
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [
+          { role: "user", content: userQuery }
+        ]
       };
 
       try {
-        const data = await fetchWithRetry(url, {
+        const data = await fetchWithRetry(WORKER_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        let responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        // Claude APIのレスポンス取得
+        let responseText = data.content?.[0]?.text;
         if (!responseText) throw new Error("APIから有効な応答がありませんでした。");
         
-        // AIの出力にMarkdownのコードブロック(```json ... ```)が含まれる場合の除去処理
-        responseText = responseText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/i, '').trim();
+        // マークダウンのコードブロックが含まれる場合の除去
+        responseText = responseText
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/, '')
+          .replace(/\s*```$/i, '')
+          .trim();
         
         currentResultData = JSON.parse(responseText);
         
-        // Render Results
         renderResults(currentResultData);
 
         loadingView.classList.add('hidden');
@@ -472,6 +467,9 @@
 
       } catch (err) {
         console.error("Parse or Network Error:", err);
+        loadingView.classList.add('hidden');
+        errorView.classList.remove('hidden');
+        errorMessage.textContent = 'エラーが発生しました。しばらくしてから再度お試しください。';
         initialView.classList.remove('hidden');
       } finally {
         submitBtn.disabled = false;
@@ -483,7 +481,6 @@
     });
 
     function renderResults(data) {
-      // 1. Short Catches
       const shortContainer = document.getElementById('shortCatchesContainer');
       shortContainer.innerHTML = data.shortCatches.map((text, idx) => `
         <li class="group relative flex items-center justify-between p-4 bg-slate-50 hover:bg-indigo-50 rounded-xl border border-slate-100 hover:border-indigo-100 transition-colors">
@@ -494,7 +491,6 @@
         </li>
       `).join('');
 
-      // 2. Empathy Catches
       const empathyContainer = document.getElementById('empathyCatchesContainer');
       empathyContainer.innerHTML = data.empathyCatches.map((text, idx) => `
         <div class="relative p-5 bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 shadow-sm">
@@ -508,15 +504,11 @@
         </div>
       `).join('');
 
-      // 3. Descriptions
       document.getElementById('desc50').innerHTML = escapeHTML(data.description50);
       document.getElementById('desc75').innerHTML = escapeHTML(data.description75);
       document.getElementById('desc100').innerHTML = escapeHTML(data.description100);
-
-      // 4. SNS Template
       document.getElementById('snsTemplate').innerHTML = escapeHTML(data.snsTemplate);
 
-      // Re-initialize icons inside new elements
       lucide.createIcons();
     }
   </script>

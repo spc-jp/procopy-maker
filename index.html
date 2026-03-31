@@ -299,7 +299,11 @@
       while (retries < maxRetries) {
         try {
           const response = await fetch(url, options);
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          if (!response.ok) {
+            const errText = await response.text();
+            console.error("API Error Details:", errText);
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
           return await response.json();
         } catch (error) {
           retries++;
@@ -452,8 +456,11 @@
           body: JSON.stringify(payload)
         });
 
-        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        let responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!responseText) throw new Error("APIから有効な応答がありませんでした。");
+        
+        // AIの出力にMarkdownのコードブロック(```json ... ```)が含まれる場合の除去処理
+        responseText = responseText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/i, '').trim();
         
         currentResultData = JSON.parse(responseText);
         
@@ -464,10 +471,7 @@
         resultView.classList.remove('hidden');
 
       } catch (err) {
-        console.error(err);
-        loadingView.classList.add('hidden');
-        errorView.classList.remove('hidden');
-        errorMessage.textContent = "コピーの生成中にエラーが発生しました。時間をおいて再度お試しください。";
+        console.error("Parse or Network Error:", err);
         initialView.classList.remove('hidden');
       } finally {
         submitBtn.disabled = false;

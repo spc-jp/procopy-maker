@@ -58,12 +58,32 @@
 
             <hr class="border-slate-100" />
 
-            <div class="mb-4">
+            <div class="mb-2">
               <h3 class="text-sm font-bold flex items-center gap-2 text-slate-700 mb-1">
                 <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
                 オプション情報
               </h3>
               <p class="text-xs text-slate-500">入力or候補から選ぶと精度が向上します</p>
+            </div>
+
+            <!-- ★ アプリコンセプト -->
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+                <i data-lucide="lightbulb" class="w-3.5 h-3.5 text-amber-500"></i>
+                アプリコンセプト
+                <span class="text-xs text-slate-400 font-normal ml-1">（任意・200文字以内）</span>
+              </label>
+              <textarea
+                id="concept"
+                rows="2"
+                maxlength="200"
+                placeholder="例：忙しい経営者でも3分でSNS投稿が完成する、AIコピーライティングツール"
+                class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-sm"
+                oninput="updateConceptCount(this)"
+              ></textarea>
+              <div class="text-right text-xs text-slate-400 mt-1">
+                <span id="conceptCount">0</span> / 200文字
+              </div>
             </div>
 
             <div>
@@ -276,7 +296,6 @@
     const btnIcon = document.getElementById('btnIcon');
     const btnText = document.getElementById('btnText');
 
-    // ★ ヘッダークリックで初期画面に戻る
     function resetToInitial() {
       initialView.classList.remove('hidden');
       resultView.classList.add('hidden');
@@ -285,13 +304,17 @@
       currentResultData = null;
     }
 
+    // ★ 文字数カウンター
+    function updateConceptCount(el) {
+      document.getElementById('conceptCount').textContent = el.value.length;
+    }
+
     const escapeHTML = (str) => {
       return str.replace(/[&<>'"]/g,
         tag => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag] || tag)
       );
     };
 
-    // ★ リトライなし・タイムアウト15秒に変更（ぐるぐる対策）
     const callAPI = async (url, options) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -393,6 +416,7 @@
       e.preventDefault();
 
       const appInfo = document.getElementById('appInfo').value;
+      const concept = document.getElementById('concept').value;
       const target = document.getElementById('target').value;
       const tone = document.getElementById('tone').value;
       const scene = document.getElementById('scene').value;
@@ -425,6 +449,8 @@
 人間らしく自然な日本語、AIっぽさNG、営業感強すぎずに「試したくなる」魅力を入れる
 類似サービスとの差別化を意識、誰向けか明確に、意外性のある切り口を1つ含める
 
+【重要】アプリコンセプトが入力されている場合は、そのコンセプトの世界観・言葉・価値観を最優先でコピーに反映してください。
+
 【出力フォーマット（厳密なJSON）】
 {
   "shortCatches": ["キャッチ1", "キャッチ2", "キャッチ3", "キャッチ4", "キャッチ5"],
@@ -435,9 +461,11 @@
   "snsTemplate": "SNS投稿用テキスト"
 }`;
 
+      // ★ コンセプトをユーザークエリに追加
       const userQuery = `以下の情報をもとにコピーを作成してください。
 
 ・アプリ/サービス名・URL：${appInfo}
+・アプリコンセプト：${concept || '指定なし'}
 ・ターゲット：${target || '指定なし（一般向け）'}
 ・トーン：${tone || '指定なし（プロフェッショナルかつ親しみやすい）'}
 ・使用シーン：${scene || '指定なし'}`;

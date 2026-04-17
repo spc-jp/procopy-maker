@@ -34,7 +34,7 @@
 
   <main class="max-w-6xl mx-auto px-4 py-8">
 
-    <!-- ★ 無料体験バナー -->
+    <!-- 無料体験バナー -->
     <div id="trialBanner" class="mb-6"></div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -285,13 +285,13 @@
     lucide.createIcons();
 
     // ========================================
-    // ★ 設定エリア（Stripe URLとパスワードをここに入力）
+    // ★ 設定エリア（ここだけ変更すればOK）
     // ========================================
-    const WORKER_URL   = 'https://procopy-maker-worker.yymmatsu.workers.dev/';
-    const STRIPE_URL   = 'https://buy.stripe.com/xxxxxxxx'; // ← Stripe URLをここに貼る
-    const UNLOCK_PASS  = 'spc2025';                         // ← パスワードをここに変更する
-    const FREE_LIMIT   = 3;
-    const STORAGE_KEY  = 'procopy_use_count';
+    const WORKER_URL  = 'https://procopy-maker-worker.yymmatsu.workers.dev/';
+    const STRIPE_URL  = 'https://buy.stripe.com/00w9ASgXg5V37WTbRacV20F';
+    const UNLOCK_PASS = 'procopy2025'; // ← パスワードをここで変更
+    const FREE_LIMIT  = 3;
+    const STORAGE_KEY = 'procopy_use_count';
     // ========================================
 
     let currentResultData = null;
@@ -305,9 +305,6 @@
     const btnIcon      = document.getElementById('btnIcon');
     const btnText      = document.getElementById('btnText');
 
-    // ========================================
-    // 使用回数管理
-    // ========================================
     function getUseCount() {
       return parseInt(localStorage.getItem(STORAGE_KEY) || '0');
     }
@@ -323,12 +320,9 @@
       localStorage.setItem('procopy_unlocked', 'true');
     }
 
-    // ========================================
-    // バナー描画
-    // ========================================
     function renderBanner() {
-      const banner = document.getElementById('trialBanner');
-      const count  = getUseCount();
+      const banner    = document.getElementById('trialBanner');
+      const count     = getUseCount();
       const remaining = FREE_LIMIT - count;
 
       if (isUnlocked()) {
@@ -342,7 +336,6 @@
       }
 
       if (remaining > 0) {
-        // 無料体験中
         const label = count === 0
           ? '🎁 今なら3回まで無料でお試しいただけます（登録不要）'
           : `🎁 無料体験 残り${remaining}回（全${FREE_LIMIT}回）`;
@@ -351,7 +344,6 @@
             <p class="text-sm font-bold text-white flex-1">${label}</p>
           </div>`;
       } else {
-        // 無料終了 → Stripeバナー＋パスワード入力
         submitBtn.disabled = true;
         btnText.textContent = '無料体験終了';
         btnIcon.setAttribute('data-lucide', 'lock');
@@ -382,9 +374,6 @@
       }
     }
 
-    // ========================================
-    // パスワード照合
-    // ========================================
     function checkPassword() {
       const input = document.getElementById('passInput').value.trim();
       if (input === UNLOCK_PASS) {
@@ -399,9 +388,6 @@
       }
     }
 
-    // ========================================
-    // ヘッダークリックで初期画面に戻る
-    // ========================================
     function resetToInitial() {
       initialView.classList.remove('hidden');
       resultView.classList.add('hidden');
@@ -422,7 +408,7 @@
 
     const callAPI = async (url, options) => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId  = setTimeout(() => controller.abort(), 15000);
       try {
         const response = await fetch(url, { ...options, signal: controller.signal });
         clearTimeout(timeoutId);
@@ -487,11 +473,11 @@
       e.preventDefault();
       if (!isUnlocked() && getUseCount() >= FREE_LIMIT) return;
 
-      const appInfo  = document.getElementById('appInfo').value;
-      const concept  = document.getElementById('concept').value;
-      const target   = document.getElementById('target').value;
-      const tone     = document.getElementById('tone').value;
-      const scene    = document.getElementById('scene').value;
+      const appInfo = document.getElementById('appInfo').value;
+      const concept = document.getElementById('concept').value;
+      const target  = document.getElementById('target').value;
+      const tone    = document.getElementById('tone').value;
+      const scene   = document.getElementById('scene').value;
       if (!appInfo.trim()) return;
 
       initialView.classList.add('hidden');
@@ -542,7 +528,6 @@
         responseText = responseText.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/i,'').trim();
         currentResultData = JSON.parse(responseText);
 
-        // ★ 生成成功後に使用回数をカウントアップ
         if (!isUnlocked()) {
           incrementUseCount();
           renderBanner();
@@ -559,16 +544,14 @@
         errorMessage.textContent = err.message || 'エラーが発生しました。';
         initialView.classList.remove('hidden');
       } finally {
+        btnIcon.classList.remove('animate-spin');
         if (!isUnlocked() && getUseCount() >= FREE_LIMIT) {
-          // ロック状態のままにする（renderBanner内で処理済み）
+          // ロック状態はrenderBanner内で処理済み
         } else {
           submitBtn.disabled = false;
           btnIcon.setAttribute('data-lucide', 'sparkles');
-          btnIcon.classList.remove('animate-spin');
           btnText.textContent = 'コピーを生成する';
-          lucide.createIcons({ root: submitBtn });
         }
-        btnIcon.classList.remove('animate-spin');
         lucide.createIcons({ root: submitBtn });
       }
     });
@@ -600,11 +583,8 @@
       lucide.createIcons();
     }
 
-    // ========================================
     // 初期化
-    // ========================================
     renderBanner();
-
   </script>
 </body>
 </html>

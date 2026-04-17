@@ -33,6 +33,10 @@
   </header>
 
   <main class="max-w-6xl mx-auto px-4 py-8">
+
+    <!-- ★ 無料体験バナー -->
+    <div id="trialBanner" class="mb-6"></div>
+
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
       
       <div class="lg:col-span-4 space-y-6">
@@ -66,17 +70,13 @@
               <p class="text-xs text-slate-500">入力or候補から選ぶと精度が向上します</p>
             </div>
 
-            <!-- ★ アプリコンセプト -->
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
                 <i data-lucide="lightbulb" class="w-3.5 h-3.5 text-amber-500"></i>
                 アプリコンセプト
                 <span class="text-xs text-slate-400 font-normal ml-1">（任意・200文字以内）</span>
               </label>
-              <textarea
-                id="concept"
-                rows="2"
-                maxlength="200"
+              <textarea id="concept" rows="2" maxlength="200"
                 placeholder="例：忙しい経営者でも3分でSNS投稿が完成する、AIコピーライティングツール"
                 class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-sm"
                 oninput="updateConceptCount(this)"
@@ -139,7 +139,7 @@
             </div>
 
             <button type="submit" id="submitBtn"
-              class="w-full mt-6 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              class="w-full mt-6 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <i data-lucide="sparkles" id="btnIcon" class="w-5 h-5"></i>
               <span id="btnText">コピーを生成する</span>
@@ -284,18 +284,124 @@
   <script>
     lucide.createIcons();
 
-    const WORKER_URL = 'https://procopy-maker-worker.yymmatsu.workers.dev/';
+    // ========================================
+    // ★ 設定エリア（Stripe URLとパスワードをここに入力）
+    // ========================================
+    const WORKER_URL   = 'https://procopy-maker-worker.yymmatsu.workers.dev/';
+    const STRIPE_URL   = 'https://buy.stripe.com/xxxxxxxx'; // ← Stripe URLをここに貼る
+    const UNLOCK_PASS  = 'spc2025';                         // ← パスワードをここに変更する
+    const FREE_LIMIT   = 3;
+    const STORAGE_KEY  = 'procopy_use_count';
+    // ========================================
+
     let currentResultData = null;
 
-    const initialView = document.getElementById('initialView');
-    const loadingView = document.getElementById('loadingView');
-    const resultView = document.getElementById('resultView');
-    const errorView = document.getElementById('errorView');
+    const initialView  = document.getElementById('initialView');
+    const loadingView  = document.getElementById('loadingView');
+    const resultView   = document.getElementById('resultView');
+    const errorView    = document.getElementById('errorView');
     const errorMessage = document.getElementById('errorMessage');
-    const submitBtn = document.getElementById('submitBtn');
-    const btnIcon = document.getElementById('btnIcon');
-    const btnText = document.getElementById('btnText');
+    const submitBtn    = document.getElementById('submitBtn');
+    const btnIcon      = document.getElementById('btnIcon');
+    const btnText      = document.getElementById('btnText');
 
+    // ========================================
+    // 使用回数管理
+    // ========================================
+    function getUseCount() {
+      return parseInt(localStorage.getItem(STORAGE_KEY) || '0');
+    }
+    function incrementUseCount() {
+      const count = getUseCount() + 1;
+      localStorage.setItem(STORAGE_KEY, count);
+      return count;
+    }
+    function isUnlocked() {
+      return localStorage.getItem('procopy_unlocked') === 'true';
+    }
+    function setUnlocked() {
+      localStorage.setItem('procopy_unlocked', 'true');
+    }
+
+    // ========================================
+    // バナー描画
+    // ========================================
+    function renderBanner() {
+      const banner = document.getElementById('trialBanner');
+      const count  = getUseCount();
+      const remaining = FREE_LIMIT - count;
+
+      if (isUnlocked()) {
+        banner.innerHTML = `
+          <div class="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3">
+            <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500 shrink-0"></i>
+            <p class="text-sm font-medium text-emerald-700">✅ ご購入ありがとうございます！無制限でご利用いただけます。</p>
+          </div>`;
+        lucide.createIcons({ root: banner });
+        return;
+      }
+
+      if (remaining > 0) {
+        // 無料体験中
+        const label = count === 0
+          ? '🎁 今なら3回まで無料でお試しいただけます（登録不要）'
+          : `🎁 無料体験 残り${remaining}回（全${FREE_LIMIT}回）`;
+        banner.innerHTML = `
+          <div class="flex items-center gap-3 bg-blue-600 rounded-2xl px-5 py-3 shadow-sm">
+            <p class="text-sm font-bold text-white flex-1">${label}</p>
+          </div>`;
+      } else {
+        // 無料終了 → Stripeバナー＋パスワード入力
+        submitBtn.disabled = true;
+        btnText.textContent = '無料体験終了';
+        btnIcon.setAttribute('data-lucide', 'lock');
+        lucide.createIcons({ root: submitBtn });
+
+        banner.innerHTML = `
+          <div class="bg-amber-50 border border-amber-300 rounded-2xl px-5 py-4 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+              <p class="text-sm font-bold text-amber-800 flex-1">⚠️ 無料体験が終了しました。続けてご利用いただくにはご購入ください。</p>
+              <a href="${STRIPE_URL}" target="_blank"
+                class="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl transition-colors shadow">
+                <i data-lucide="shopping-cart" class="w-4 h-4"></i> ご購入はこちら
+              </a>
+            </div>
+            <div class="mt-3 flex items-center gap-2">
+              <i data-lucide="key" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <input type="password" id="passInput" placeholder="購入後に届くパスワードを入力"
+                class="flex-1 px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <button onclick="checkPassword()"
+                class="shrink-0 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold rounded-xl transition-colors">
+                解除
+              </button>
+            </div>
+            <p id="passError" class="hidden text-xs text-red-500 mt-1 ml-6">パスワードが違います</p>
+          </div>`;
+        lucide.createIcons({ root: banner });
+      }
+    }
+
+    // ========================================
+    // パスワード照合
+    // ========================================
+    function checkPassword() {
+      const input = document.getElementById('passInput').value.trim();
+      if (input === UNLOCK_PASS) {
+        setUnlocked();
+        submitBtn.disabled = false;
+        btnText.textContent = 'コピーを生成する';
+        btnIcon.setAttribute('data-lucide', 'sparkles');
+        lucide.createIcons({ root: submitBtn });
+        renderBanner();
+      } else {
+        document.getElementById('passError').classList.remove('hidden');
+      }
+    }
+
+    // ========================================
+    // ヘッダークリックで初期画面に戻る
+    // ========================================
     function resetToInitial() {
       initialView.classList.remove('hidden');
       resultView.classList.add('hidden');
@@ -304,7 +410,6 @@
       currentResultData = null;
     }
 
-    // ★ 文字数カウンター
     function updateConceptCount(el) {
       document.getElementById('conceptCount').textContent = el.value.length;
     }
@@ -329,9 +434,7 @@
         return await response.json();
       } catch (err) {
         clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          throw new Error('タイムアウトしました。WorkerのURLが正しいか確認してください。');
-        }
+        if (err.name === 'AbortError') throw new Error('タイムアウトしました。WorkerのURLが正しいか確認してください。');
         throw err;
       }
     };
@@ -344,83 +447,51 @@
           await navigator.clipboard.writeText(textToCopy);
         } else {
           const ta = document.createElement("textarea");
-          ta.value = textToCopy;
-          ta.style.position = "absolute";
-          ta.style.left = "-999999px";
-          document.body.prepend(ta);
-          ta.select();
-          document.execCommand('copy');
-          ta.remove();
+          ta.value = textToCopy; ta.style.position = "absolute"; ta.style.left = "-999999px";
+          document.body.prepend(ta); ta.select(); document.execCommand('copy'); ta.remove();
         }
         const originalHTML = btnElement.innerHTML;
         btnElement.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i> <span class="text-emerald-600">コピーしました</span>`;
         lucide.createIcons({ root: btnElement });
-        setTimeout(() => {
-          btnElement.innerHTML = originalHTML;
-          lucide.createIcons({ root: btnElement });
-        }, 2000);
-      } catch (err) {
-        console.error('Failed to copy:', err);
-      }
+        setTimeout(() => { btnElement.innerHTML = originalHTML; lucide.createIcons({ root: btnElement }); }, 2000);
+      } catch (err) { console.error('Failed to copy:', err); }
     }
 
     async function copyAllData(btnElement) {
       if (!currentResultData) return;
       const d = currentResultData;
       const allText = [
-        '【短いキャッチ】',
-        d.shortCatches.map((t, i) => `${i + 1}. ${t}`).join('\n'),
-        '',
-        '【共感キャッチ】',
-        d.empathyCatches.map((t, i) => `${i + 1}. ${t}`).join('\n'),
-        '',
-        '【説明文 約50文字】',
-        d.description50,
-        '',
-        '【説明文 約75文字】',
-        d.description75,
-        '',
-        '【説明文 約100文字】',
-        d.description100,
-        '',
-        '【SNS投稿テンプレート】',
-        d.snsTemplate,
+        '【短いキャッチ】', d.shortCatches.map((t, i) => `${i + 1}. ${t}`).join('\n'), '',
+        '【共感キャッチ】', d.empathyCatches.map((t, i) => `${i + 1}. ${t}`).join('\n'), '',
+        '【説明文 約50文字】', d.description50, '',
+        '【説明文 約75文字】', d.description75, '',
+        '【説明文 約100文字】', d.description100, '',
+        '【SNS投稿テンプレート】', d.snsTemplate,
       ].join('\n');
-
       try {
         if (navigator.clipboard && window.isSecureContext) {
           await navigator.clipboard.writeText(allText);
         } else {
           const ta = document.createElement("textarea");
-          ta.value = allText;
-          ta.style.position = "absolute";
-          ta.style.left = "-999999px";
-          document.body.prepend(ta);
-          ta.select();
-          document.execCommand('copy');
-          ta.remove();
+          ta.value = allText; ta.style.position = "absolute"; ta.style.left = "-999999px";
+          document.body.prepend(ta); ta.select(); document.execCommand('copy'); ta.remove();
         }
         const originalHTML = btnElement.innerHTML;
         btnElement.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> コピーしました！`;
         lucide.createIcons({ root: btnElement });
-        setTimeout(() => {
-          btnElement.innerHTML = originalHTML;
-          lucide.createIcons({ root: btnElement });
-        }, 2500);
-      } catch (err) {
-        console.error('Failed to copy all:', err);
-      }
+        setTimeout(() => { btnElement.innerHTML = originalHTML; lucide.createIcons({ root: btnElement }); }, 2500);
+      } catch (err) { console.error('Failed to copy all:', err); }
     }
 
     document.getElementById('copyForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!isUnlocked() && getUseCount() >= FREE_LIMIT) return;
 
-      const appInfo = document.getElementById('appInfo').value;
-      const concept = document.getElementById('concept').value;
-      const target = document.getElementById('target').value;
-      const tone = document.getElementById('tone').value;
-      const scene = document.getElementById('scene').value;
-
+      const appInfo  = document.getElementById('appInfo').value;
+      const concept  = document.getElementById('concept').value;
+      const target   = document.getElementById('target').value;
+      const tone     = document.getElementById('tone').value;
+      const scene    = document.getElementById('scene').value;
       if (!appInfo.trim()) return;
 
       initialView.classList.add('hidden');
@@ -435,39 +506,21 @@
 
       const systemPrompt = `あなたはプロのコピーライター兼Webマーケターです。
 中小企業・士業・店舗ビジネスに強く、「共感」と「わかりやすさ」で行動を促す文章作成が得意です。
-
 必ずJSONのみを出力してください。説明文・前置き・マークダウンのコードブロックは一切不要です。
-出力はJSONオブジェクトそのものだけにしてください。
-
 【出力ルール】
-① 短いキャッチ（5〜15文字）3〜5案、一目で意味が伝わる、抽象的すぎない
-② 共感キャッチ 3案、「悩み → 解決」の流れ、ターゲットに刺さる内容
-③ 説明文 50文字・75文字・100文字の3パターン、自然な日本語、ベネフィットを含める
+① 短いキャッチ（5〜15文字）3〜5案
+② 共感キャッチ 3案、「悩み→解決」の流れ
+③ 説明文 50文字・75文字・100文字の3パターン、ベネフィットを含める
 ④ SNS投稿テンプレ 1つ、改行は\\n、絵文字適度に、「共感→提案→行動」の流れ
-
-【スタイル】
-人間らしく自然な日本語、AIっぽさNG、営業感強すぎずに「試したくなる」魅力を入れる
-類似サービスとの差別化を意識、誰向けか明確に、意外性のある切り口を1つ含める
-
-【重要】アプリコンセプトが入力されている場合は、そのコンセプトの世界観・言葉・価値観を最優先でコピーに反映してください。
-
+【重要】アプリコンセプトが入力されている場合は、その世界観・言葉を最優先でコピーに反映してください。
 【出力フォーマット（厳密なJSON）】
-{
-  "shortCatches": ["キャッチ1", "キャッチ2", "キャッチ3", "キャッチ4", "キャッチ5"],
-  "empathyCatches": ["共感コピー1", "共感コピー2", "共感コピー3"],
-  "description50": "50文字程度の説明文",
-  "description75": "75文字程度の説明文",
-  "description100": "100文字程度の説明文",
-  "snsTemplate": "SNS投稿用テキスト"
-}`;
+{"shortCatches":["","","","",""],"empathyCatches":["","",""],"description50":"","description75":"","description100":"","snsTemplate":""}`;
 
-      // ★ コンセプトをユーザークエリに追加
       const userQuery = `以下の情報をもとにコピーを作成してください。
-
 ・アプリ/サービス名・URL：${appInfo}
 ・アプリコンセプト：${concept || '指定なし'}
-・ターゲット：${target || '指定なし（一般向け）'}
-・トーン：${tone || '指定なし（プロフェッショナルかつ親しみやすい）'}
+・ターゲット：${target || '指定なし'}
+・トーン：${tone || '指定なし'}
 ・使用シーン：${scene || '指定なし'}`;
 
       const payload = {
@@ -485,15 +538,16 @@
         });
 
         let responseText = data.content?.[0]?.text;
-        if (!responseText) throw new Error("APIから有効な応答がありませんでした。AnthropicのAPIキーを確認してください。");
-
-        responseText = responseText
-          .replace(/^```json\s*/i, '')
-          .replace(/^```\s*/, '')
-          .replace(/\s*```$/i, '')
-          .trim();
-
+        if (!responseText) throw new Error("APIから有効な応答がありませんでした。");
+        responseText = responseText.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/i,'').trim();
         currentResultData = JSON.parse(responseText);
+
+        // ★ 生成成功後に使用回数をカウントアップ
+        if (!isUnlocked()) {
+          incrementUseCount();
+          renderBanner();
+        }
+
         renderResults(currentResultData);
         loadingView.classList.add('hidden');
         resultView.classList.remove('hidden');
@@ -502,13 +556,19 @@
         console.error("Error:", err);
         loadingView.classList.add('hidden');
         errorView.classList.remove('hidden');
-        errorMessage.textContent = err.message || 'エラーが発生しました。しばらくしてから再度お試しください。';
+        errorMessage.textContent = err.message || 'エラーが発生しました。';
         initialView.classList.remove('hidden');
       } finally {
-        submitBtn.disabled = false;
-        btnIcon.setAttribute('data-lucide', 'sparkles');
+        if (!isUnlocked() && getUseCount() >= FREE_LIMIT) {
+          // ロック状態のままにする（renderBanner内で処理済み）
+        } else {
+          submitBtn.disabled = false;
+          btnIcon.setAttribute('data-lucide', 'sparkles');
+          btnIcon.classList.remove('animate-spin');
+          btnText.textContent = 'コピーを生成する';
+          lucide.createIcons({ root: submitBtn });
+        }
         btnIcon.classList.remove('animate-spin');
-        btnText.textContent = 'コピーを生成する';
         lucide.createIcons({ root: submitBtn });
       }
     });
@@ -520,8 +580,7 @@
           <button onclick="copyData('shortCatches', this, ${idx})" class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors">
             <i data-lucide="copy" class="w-4 h-4"></i> <span>コピー</span>
           </button>
-        </li>
-      `).join('');
+        </li>`).join('');
 
       document.getElementById('empathyCatchesContainer').innerHTML = data.empathyCatches.map((text, idx) => `
         <div class="relative p-5 bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 shadow-sm">
@@ -532,15 +591,20 @@
               <i data-lucide="copy" class="w-4 h-4"></i> <span>コピー</span>
             </button>
           </div>
-        </div>
-      `).join('');
+        </div>`).join('');
 
-      document.getElementById('desc50').innerHTML = escapeHTML(data.description50);
-      document.getElementById('desc75').innerHTML = escapeHTML(data.description75);
+      document.getElementById('desc50').innerHTML  = escapeHTML(data.description50);
+      document.getElementById('desc75').innerHTML  = escapeHTML(data.description75);
       document.getElementById('desc100').innerHTML = escapeHTML(data.description100);
       document.getElementById('snsTemplate').innerHTML = escapeHTML(data.snsTemplate);
       lucide.createIcons();
     }
+
+    // ========================================
+    // 初期化
+    // ========================================
+    renderBanner();
+
   </script>
 </body>
 </html>
